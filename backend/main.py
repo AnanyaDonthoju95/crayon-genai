@@ -6,11 +6,16 @@ from pydantic import BaseModel
 from pinecone import Pinecone, ServerlessSpec
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+import logging
 
 # Load environment variables
 load_dotenv()
 
 # ---------- Configuration ----------
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Gemini LLM
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
@@ -18,7 +23,7 @@ if not GEMINI_API_KEY:
 
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel("gemini-1.5-flash-latest")
-print("[DEBUG] Gemini model initialized.")
+logger.info("[DEBUG] Gemini model initialized.")
 
 # Pinecone Setup
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
@@ -35,7 +40,7 @@ if index_name not in pc.list_indexes().names():
         spec=ServerlessSpec(cloud="aws", region="us-east-1")
     )
 index = pc.Index(index_name)
-print("[DEBUG] Pinecone index set up.")
+logger.info("[DEBUG] Pinecone index set up.")
 
 # Serper API
 SERPER_API_KEY = os.getenv("SERPER_API_KEY")
@@ -51,7 +56,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-print("[DEBUG] FastAPI app initialized with CORS.")
+logger.info("[DEBUG] FastAPI app initialized with CORS.")
 
 # ---------- Schema ----------
 class ChatRequest(BaseModel):
@@ -68,7 +73,7 @@ def get_embedding(text):
         )
         return res["embedding"]
     except Exception as e:
-        print(f"[ERROR] Embedding failed: {e}")
+        logger.error(f"[ERROR] Embedding failed: {e}")
         return None
 
 def store_memory(user_id: str, topic: str, full_message: str):
@@ -85,7 +90,7 @@ def store_memory(user_id: str, topic: str, full_message: str):
                 }
             }])
         except Exception as e:
-            print(f"[ERROR] Memory store failed: {e}")
+            logger.error(f"[ERROR] Memory store failed: {e}")
 
 def retrieve_memory(user_id: str, query: str, top_k: int = 3):
     vector = get_embedding(query)
@@ -99,7 +104,7 @@ def retrieve_memory(user_id: str, query: str, top_k: int = 3):
             )
             return [match["metadata"]["content"] for match in result.get("matches", [])]
         except Exception as e:
-            print(f"[ERROR] Memory retrieve failed: {e}")
+            logger.error(f"[ERROR] Memory retrieve failed: {e}")
     return []
 
 # ---------- News ----------
@@ -114,7 +119,7 @@ def fetch_news(company):
         res.raise_for_status()
         return res.json().get("news", [])
     except Exception as e:
-        print(f"[ERROR] News fetch failed: {e}")
+        logger.error(f"[ERROR] News fetch failed: {e}")
         return []
 
 def summarize_news(news_items):
@@ -125,7 +130,7 @@ def summarize_news(news_items):
     try:
         return model.generate_content(prompt).text
     except Exception as e:
-        print(f"[ERROR] News summary failed: {e}")
+        logger.error(f"[ERROR] News summary failed: {e}")
         return "Error summarizing news."
 
 # ---------- Market Comparison ----------
@@ -134,7 +139,7 @@ def compare_market(company, competitors):
     try:
         return model.generate_content(prompt).text
     except Exception as e:
-        print(f"[ERROR] Comparison failed: {e}")
+        logger.error(f"[ERROR] Comparison failed: {e}")
         return "Error comparing companies."
 
 # ---------- Chat Endpoint ----------
@@ -165,12 +170,14 @@ async def chat(request: ChatRequest):
         return {"response": response}
 
     except Exception as e:
+        logger.error(f"[ERROR] Chat processing failed: {e}")
         return {"response": f"Error: {str(e)}"}
 
 # ---------- Root ----------
 @app.get("/")
 def home():
     return {"message": "AI Intel Agent Running 🚀"}
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", 8000)), reload=True)
