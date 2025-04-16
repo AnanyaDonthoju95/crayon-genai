@@ -21,14 +21,10 @@ function ChatBox() {
     setLoading(true);
 
     try {
-       const res = await axios.post('http://localhost:8000/chat', {
-       user_id: 'user123',
+      const res = await axios.post('https://crayon-genai-1.onrender.com/chat', {
+        user_id: 'user123',
         message: input
       });
-      //const res = await axios.post('https://inteliscan.vercel.app/chat', {
-        //user_id: 'user123',
-        //message: input
-      //});
 
       const aiMsg = { sender: 'IntelliBot', text: res.data.response };
       setMessages(prev => [...prev, aiMsg]);
@@ -41,7 +37,12 @@ function ChatBox() {
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter') sendMessage();
+    if (e.key === 'Enter' && !e.shiftKey) sendMessage(); // Send message on Enter key, ignore Shift + Enter
+  };
+
+  const handleInputChange = (e) => {
+    setInput(e.target.value);
+    if (error) setError(null); // Clear error message when user starts typing
   };
 
   useEffect(() => {
@@ -118,7 +119,7 @@ function ChatBox() {
               className="form-control rounded-pill"
               placeholder="Ask something..."
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={handleInputChange}
               onKeyDown={handleKeyDown}
               style={{
                 padding: '12px 20px',
